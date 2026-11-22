@@ -69,51 +69,50 @@ class BitapresApp(ctk.CTk):
             self.label_file.configure(text=nama_file, text_color="white")
 
     def mulai_proses(self):
-        """Validasi input lalu jalankan kompresi di thread terpisah."""
-        if not self.path_video:
-            self.label_status.configure(text="Pilih file video dulu!", text_color="#ff4d4d")
+        """Validasi input ketat lalu jalankan kompresi di thread terpisah."""
+        if not self.path_video or not os.path.isfile(self.path_video):
+            self.label_status.configure(text="Pilih file video yang valid dulu!", text_color="#ff4d4d")
             return
 
+        teks_target = self.entry_target.get().strip().replace(",", ".")
         try:
-            target_mb = float(self.entry_target.get())
-            if target_mb <= 0:
+            target_mb = float(teks_target)
+            if not math.isfinite(target_mb) or target_mb <= 0:
                 raise ValueError
         except ValueError:
-            self.label_status.configure(text="Masukkan angka MB yang valid!", text_color="#ff4d4d")
+            self.label_status.configure(
+                text="Masukkan angka target MB positif yang valid (contoh: 8).",
+                text_color="#ff4d4d"
+            )
             return
 
-        # Kunci tombol agar tidak diklik dua kali saat memproses
         self.btn_kompres.configure(state="disabled")
         self.btn_pilih.configure(state="disabled")
         self.label_status.configure(text="Sedang mengompres... mohon tunggu", text_color="#ffc107")
 
-        # Jalankan fungsi proses_kompresi di jalur terpisah (thread)
         thread = threading.Thread(target=self.proses_kompresi, args=(target_mb,), daemon=True)
         thread.start()
 
     def proses_kompresi(self, target_mb):
-        """Memanggil engine.py dan memperbarui status setelah selesai."""
-        nama_dasar, _ = os.path.splitext(self.path_video)
-        output_path = f"{nama_dasar}_bitapres.mp4"
+        """Menjalankan engine.py dengan pengaman try-except-finally agar GUI tidak pernah nyangkut."""
+        berhasil = False
+        pesan = "Terjadi kesalahan tidak terduga."
+        try:
+            nama_dasar, _ = os.path.splitext(self.path_video)
+            output_path = f"{nama_dasar}_bitapres.mp4"
+            berhasil, pesan, _ = kompres_video(self.path_video, output_path, target_mb)
+        except Exception as e:
+            berhasil = False
+            pesan = f"Error sistem: {e}"
+        finally:
+            # Dijamin selalu dipanggil apa pun yang terjadi
+            self.after(0, lambda: self.selesai_proses(berhasil, pesan))
 
-        berhasil = kompres_video(self.path_video, output_path, target_mb)
-
-        # Kembalikan tampilan ke kondisi siap (pakai self.after agar aman di thread)
-        self.after(0, lambda: self.selesai_proses(berhasil, output_path))
-
-    def selesai_proses(self, berhasil, output_path):
+    def selesai_proses(self, berhasil, pesan):
         self.btn_kompres.configure(state="normal")
         self.btn_pilih.configure(state="normal")
-
-        if berhasil:
-            ukuran = os.path.getsize(output_path) / (1024 * 1024)
-            self.label_status.configure(
-                text=f"Selesai! Hasil: {ukuran:.2f} MB (folder sama)", text_color="#28a745"
-            )
-        else:
-            self.label_status.configure(
-                text="Gagal! Target MB terlalu kecil untuk durasi video.", text_color="#ff4d4d"
-            )
+        warna = "#28a745" if berhasil else "#ff4d4d"
+        self.label_status.configure(text=pesan, text_color=warna)
 
 if __name__ == "__main__":
     app = BitapresApp()
