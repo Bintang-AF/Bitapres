@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import shutil
@@ -56,6 +57,56 @@ def ambil_durasi(path_video, path_ffprobe):
         return None, "Gagal membaca durasi. Pastikan file benar-benar berisi video."
     except Exception as e:
         return None, f"Gagal menjalankan FFprobe: {e}"
+    
+def ambil_info_video(path_video):
+    """Membaca metadata video (ukuran, durasi, resolusi, FPS) sekaligus lewat FFprobe JSON."""
+    path_ffprobe = cari_binary("ffprobe")
+    if not path_ffprobe or not os.path.isfile(path_video):
+        return None
+
+    perintah = [
+        path_ffprobe, "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height,r_frame_rate",
+        "-show_entries", "format=duration",
+        "-of", "json",
+        path_video
+    ]
+    try:
+        hasil = subprocess.run(
+            perintah,
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        )
+        if hasil.returncode != 0:
+            return None
+
+        data = json.loads(hasil.stdout)
+        stream = data.get("streams", [{}])[0]
+        fmt = data.get("format", {})
+
+        lebar = stream.get("width", 0)
+        tinggi = stream.get("height", 0)
+        durasi = float(fmt.get("duration", 0))
+        ukuran_mb = os.path.getsize(path_video) / (1024 * 1024)
+
+        # Menghitung FPS dari format pecahan FFprobe (contoh: "30000/1001" -> 29.97)
+        fps_str = stream.get("r_frame_rate", "0/1")
+        if "/" in fps_str:
+            pembilang, penyebut = fps_str.split("/")
+            fps = float(pembilang) / float(penyebut) if float(penyebut) != 0 else 0
+        else:
+            fps = float(fps_str)
+
+        return {
+            "ukuran_mb": ukuran_mb,
+            "durasi": durasi,
+            "resolusi": f"{lebar}x{tinggi}" if lebar and tinggi else "Tidak diketahui",
+            "fps": round(fps)
+        }
+    except Exception:
+        return None    
 
 def kompres_video(input_path, output_path, target_mb, progress_callback=None, cancel_event=None):
     """
@@ -160,6 +211,18 @@ def kompres_video(input_path, output_path, target_mb, progress_callback=None, ca
     if progress_callback:
         progress_callback(1.0)
 
+    ukuran_awal = os.path.getsize(input_path) / (1024 * 1024)
     ukuran_akhir = os.path.getsize(final_output) / (1024 * 1024)
     nama_hasil = os.path.basename(final_output)
-    return True, f"Selesai! {nama_hasil} ({ukuran_akhir:.2f} MB)", final_output
+
+    if ukuran_awal > 0 and ukuran_akhir < ukuran_awal:
+        hemat_persen = ((ukuran_awal - ukuran_akhir) / ukuran_awal) * 100
+        info_hemat = f"Hemat {hemat_persen:.1f}%"
+    else:
+        info_hemat = "Ukuran tidak menyusut"
+
+    return (
+        True,
+        f"Selesai! {nama_hasil}\n{ukuran_awal:.2f} MB → {ukuran_akhir:.2f} MB ({info_hemat})",
+        final_output
+    )
