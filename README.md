@@ -11,3 +11,5 @@ Aplikasi desktop lokal berbasis Python dan FFmpeg untuk mengompres ukuran video 
 - [x] Logika inti kompresi di terminal
 - [x] Antarmuka pengguna (GUI) dengan CustomTkinter
 - [x] Build ke file .exe
+
+## Download
