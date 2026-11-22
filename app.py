@@ -13,7 +13,7 @@ class BitapresApp(ctk.CTk):
         super().__init__()
 
         self.title("Bitapres v1.1.0 - Kompresor Video")
-        self.geometry("480x500")
+        self.geometry("480x550")
         self.resizable(False, False)
 
         self.path_video = ""
@@ -63,6 +63,13 @@ class BitapresApp(ctk.CTk):
         self.entry_target.insert(0, "8")
         self.entry_target.pack(side="left", padx=5)
 
+        # Pilihan Mode Kompresi (1-Pass vs 2-Pass)
+        self.seg_mode = ctk.CTkSegmentedButton(
+            self, values=["Cepat (1-Pass)", "Akurat (2-Pass)"]
+        )
+        self.seg_mode.set("Cepat (1-Pass)")
+        self.seg_mode.pack(pady=(0, 10))
+
         # Frame Tombol Mulai & Batal
         self.frame_aksi = ctk.CTkFrame(self, fg_color="transparent")
         self.frame_aksi.pack(pady=10)
@@ -109,7 +116,6 @@ class BitapresApp(ctk.CTk):
             self.progress_bar.set(0)
             self.label_persen.configure(text="0%")
 
-            # Ambil dan tampilkan metadata video
             info = ambil_info_video(file_terpilih)
             if info:
                 teks_info = (
@@ -125,7 +131,6 @@ class BitapresApp(ctk.CTk):
         folder = filedialog.askdirectory(title="Pilih Folder Penyimpanan")
         if folder:
             self.folder_output = folder
-            # Potong teks path jika terlalu panjang agar rapi
             tampilan = folder if len(folder) <= 35 else "..." + folder[-32:]
             self.label_folder.configure(text=tampilan, text_color="white")
 
@@ -146,6 +151,8 @@ class BitapresApp(ctk.CTk):
             )
             return
 
+        mode_terpilih = "2-pass" if self.seg_mode.get() == "Akurat (2-Pass)" else "1-pass"
+
         self.cancel_event.clear()
         self.progress_bar.set(0)
         self.label_persen.configure(text="0%", text_color="white")
@@ -153,10 +160,13 @@ class BitapresApp(ctk.CTk):
         self.btn_kompres.configure(state="disabled")
         self.btn_pilih.configure(state="disabled")
         self.btn_folder.configure(state="disabled")
+        self.seg_mode.configure(state="disabled")
         self.btn_batal.configure(state="normal")
-        self.label_status.configure(text="Sedang mengompres...", text_color="#ffc107")
+        self.label_status.configure(text=f"Sedang mengompres ({mode_terpilih})...", text_color="#ffc107")
 
-        thread = threading.Thread(target=self.proses_kompresi, args=(target_mb,), daemon=True)
+        thread = threading.Thread(
+            target=self.proses_kompresi, args=(target_mb, mode_terpilih), daemon=True
+        )
         thread.start()
 
     def batalkan_proses(self):
@@ -171,7 +181,7 @@ class BitapresApp(ctk.CTk):
         self.progress_bar.set(nilai)
         self.label_persen.configure(text=f"{int(nilai * 100)}%")
 
-    def proses_kompresi(self, target_mb):
+    def proses_kompresi(self, target_mb, mode):
         berhasil = False
         pesan = "Terjadi kesalahan tidak terduga."
         try:
@@ -183,6 +193,7 @@ class BitapresApp(ctk.CTk):
                 self.path_video,
                 output_path,
                 target_mb,
+                mode=mode,
                 progress_callback=self.update_progress,
                 cancel_event=self.cancel_event
             )
@@ -196,6 +207,7 @@ class BitapresApp(ctk.CTk):
         self.btn_kompres.configure(state="normal")
         self.btn_pilih.configure(state="normal")
         self.btn_folder.configure(state="normal")
+        self.seg_mode.configure(state="normal")
         self.btn_batal.configure(state="disabled")
 
         if berhasil:
