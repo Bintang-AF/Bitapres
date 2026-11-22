@@ -1,3 +1,4 @@
+import math
 import os
 import threading
 from tkinter import filedialog
@@ -51,7 +52,9 @@ class BitapresApp(ctk.CTk):
         self.btn_kompres.pack(pady=15)
 
         # Label Status
-        self.label_status = ctk.CTkLabel(self, text="Siap digunakan", text_color="white")
+        self.label_status = ctk.CTkLabel(
+            self, text="Siap digunakan", text_color="white", wraplength=400
+        )
         self.label_status.pack(pady=5)
 
     def pilih_file(self):
