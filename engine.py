@@ -1,9 +1,11 @@
+import glob
 import json
 import math
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 def cari_binary(nama_exe):
     """Mencari ffmpeg.exe / ffprobe.exe di folder aplikasi dulu, baru ke PATH sistem."""
@@ -57,7 +59,7 @@ def ambil_durasi(path_video, path_ffprobe):
         return None, "Gagal membaca durasi. Pastikan file benar-benar berisi video."
     except Exception as e:
         return None, f"Gagal menjalankan FFprobe: {e}"
-    
+
 def ambil_info_video(path_video):
     """Membaca metadata video (ukuran, durasi, resolusi, FPS) sekaligus lewat FFprobe JSON."""
     path_ffprobe = cari_binary("ffprobe")
@@ -91,7 +93,6 @@ def ambil_info_video(path_video):
         durasi = float(fmt.get("duration", 0))
         ukuran_mb = os.path.getsize(path_video) / (1024 * 1024)
 
-        # Menghitung FPS dari format pecahan FFprobe (contoh: "30000/1001" -> 29.97)
         fps_str = stream.get("r_frame_rate", "0/1")
         if "/" in fps_str:
             pembilang, penyebut = fps_str.split("/")
@@ -106,13 +107,57 @@ def ambil_info_video(path_video):
             "fps": round(fps)
         }
     except Exception:
-        return None    
+        return None
 
-def kompres_video(input_path, output_path, target_mb, progress_callback=None, cancel_event=None):
+def _jalankan_ffmpeg(perintah, durasi, progress_callback=None, cancel_event=None, offset=0.0, skala=1.0):
+    """Menjalankan satu proses FFmpeg sambil memantau progres dan sinyal batal."""
+    try:
+        proses = subprocess.Popen(
+            perintah,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        )
+
+        for baris in proses.stdout:
+            if cancel_event and cancel_event.is_set():
+                proses.terminate()
+                proses.wait()
+                return "CANCELLED", "Kompresi dibatalkan oleh pengguna."
+
+            baris = baris.strip()
+            if baris.startswith("out_time_us="):
+                nilai = baris.split("=", 1)[1]
+                if nilai.isdigit():
+                    detik_berjalan = int(nilai) / 1_000_000
+                    persen_lokal = min(max(detik_berjalan / durasi, 0.0), 1.0)
+                    if progress_callback:
+                        progress_callback(offset + (persen_lokal * skala))
+
+        proses.wait()
+        stderr_output = proses.stderr.read().strip()
+
+        if proses.returncode != 0:
+            baris_err = stderr_output.splitlines()
+            detail = baris_err[-1] if baris_err else "Kode error tidak diketahui."
+            return "ERROR", f"FFmpeg gagal memproses video: {detail}"
+
+        return "OK", None
+    except Exception as e:
+        return "ERROR", f"Gagal menjalankan FFmpeg: {e}"
+
+def _hapus_file_aman(path_file):
+    if path_file and os.path.exists(path_file):
+        try:
+            os.remove(path_file)
+        except OSError:
+            pass
+
+def kompres_video(input_path, output_path, target_mb, mode="1-pass", progress_callback=None, cancel_event=None):
     """
+    mode: "1-pass" (cepat) atau "2-pass" (akurat & kualitas lebih baik).
     Mengembalikan tuple: (berhasil: bool, pesan: str, final_output_path: str | None)
-    - progress_callback: fungsi penerima angka 0.0 sampai 1.0 untuk update progress bar GUI.
-    - cancel_event: threading.Event() untuk membatalkan proses di tengah jalan.
     """
     if not isinstance(target_mb, (int, float)) or not math.isfinite(target_mb) or target_mb <= 0:
         return False, "Target ukuran harus berupa angka positif yang valid.", None
@@ -145,61 +190,67 @@ def kompres_video(input_path, output_path, target_mb, progress_callback=None, ca
 
     final_output = buat_path_unik(output_path)
 
-    # Tambahan -progress pipe:1 -nostats agar FFmpeg mengirim laporan progres terstruktur
-    perintah_ffmpeg = [
-        path_ffmpeg, "-y",
-        "-v", "error",
-        "-i", input_path,
-        "-b:v", f"{int(video_bitrate)}k",
-        "-b:a", f"{audio_bitrate}k",
-        "-progress", "pipe:1",
-        "-nostats",
-        final_output
-    ]
+    if mode == "2-pass":
+        # Simpan file log sementara 2-pass di folder Temp sistem
+        log_prefix = os.path.join(tempfile.gettempdir(), f"bitapres_pass_{os.getpid()}")
+        try:
+            # Pass 1: Analisis video (0% -> 50%)
+            cmd_pass1 = [
+                path_ffmpeg, "-y", "-v", "error",
+                "-i", input_path,
+                "-c:v", "libx264",
+                "-b:v", f"{int(video_bitrate)}k",
+                "-pass", "1",
+                "-passlogfile", log_prefix,
+                "-an", "-f", "mp4",
+                "-progress", "pipe:1", "-nostats",
+                os.devnull
+            ]
+            status, pesan_err = _jalankan_ffmpeg(
+                cmd_pass1, durasi, progress_callback, cancel_event, offset=0.0, skala=0.5
+            )
+            if status != "OK":
+                return False, pesan_err, None
 
-    try:
-        proses = subprocess.Popen(
-            perintah_ffmpeg,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+            # Pass 2: Kompresi aktual (50% -> 100%)
+            cmd_pass2 = [
+                path_ffmpeg, "-y", "-v", "error",
+                "-i", input_path,
+                "-c:v", "libx264",
+                "-b:v", f"{int(video_bitrate)}k",
+                "-pass", "2",
+                "-passlogfile", log_prefix,
+                "-c:a", "aac", "-b:a", f"{audio_bitrate}k",
+                "-progress", "pipe:1", "-nostats",
+                final_output
+            ]
+            status, pesan_err = _jalankan_ffmpeg(
+                cmd_pass2, durasi, progress_callback, cancel_event, offset=0.5, skala=0.5
+            )
+            if status != "OK":
+                _hapus_file_aman(final_output)
+                return False, pesan_err, None
+        finally:
+            # Bersihkan semua file log sementara milik 2-pass
+            for file_log in glob.glob(f"{log_prefix}*"):
+                _hapus_file_aman(file_log)
+    else:
+        # Mode 1-Pass (0% -> 100%)
+        cmd_1pass = [
+            path_ffmpeg, "-y", "-v", "error",
+            "-i", input_path,
+            "-c:v", "libx264",
+            "-b:v", f"{int(video_bitrate)}k",
+            "-c:a", "aac", "-b:a", f"{audio_bitrate}k",
+            "-progress", "pipe:1", "-nostats",
+            final_output
+        ]
+        status, pesan_err = _jalankan_ffmpeg(
+            cmd_1pass, durasi, progress_callback, cancel_event, offset=0.0, skala=1.0
         )
-
-        # Baca laporan FFmpeg baris demi baris secara real-time
-        for baris in proses.stdout:
-            # Cek apakah pengguna menekan tombol Batal
-            if cancel_event and cancel_event.is_set():
-                proses.terminate()
-                proses.wait()
-                # Hapus file hasil yang baru setengah jadi
-                if os.path.exists(final_output):
-                    try:
-                        os.remove(final_output)
-                    except OSError:
-                        pass
-                return False, "Kompresi dibatalkan oleh pengguna.", None
-
-            baris = baris.strip()
-            # FFmpeg mengirim waktu proses dalam satuan mikrodetik (out_time_us)
-            if baris.startswith("out_time_us="):
-                nilai = baris.split("=", 1)[1]
-                if nilai.isdigit():
-                    detik_berjalan = int(nilai) / 1_000_000
-                    persen = min(max(detik_berjalan / durasi, 0.0), 1.0)
-                    if progress_callback:
-                        progress_callback(persen)
-
-        proses.wait()
-        stderr_output = proses.stderr.read().strip()
-
-        if proses.returncode != 0:
-            baris_err = stderr_output.splitlines()
-            detail = baris_err[-1] if baris_err else "Kode error tidak diketahui."
-            return False, f"FFmpeg gagal memproses video: {detail}", None
-
-    except Exception as e:
-        return False, f"Gagal menjalankan FFmpeg: {e}", None
+        if status != "OK":
+            _hapus_file_aman(final_output)
+            return False, pesan_err, None
 
     if not os.path.isfile(final_output) or os.path.getsize(final_output) == 0:
         return False, "File hasil tidak terbentuk atau ukurannya 0 byte.", None
