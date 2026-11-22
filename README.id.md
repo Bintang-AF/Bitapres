@@ -1,42 +1,65 @@
-# Bitapres
+<div align="center">
 
-🌐 **Bahasa:** [English](README.md) | **Bahasa Indonesia**
+# 🎬 Bitapres
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/Bintang-AF/Bitapres?style=flat-square&color=blue)
-![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=flat-square&logo=windows)
-![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white)
+**Kompres video sesuai target ukuran (MB) — 100% offline, cepat, dan privat.**
 
-**Bitapres** adalah aplikasi desktop lokal berbasis Python dan FFmpeg untuk mengompres ukuran video berdasarkan **target ukuran (MB)** tanpa perlu koneksi internet. Cocok untuk mengecilkan klip game agar muat di Discord (<10 MB) atau tugas video untuk portal kampus tanpa harus mengunggah file pribadi ke situs online.
+🌐 [English](README.md) | **Bahasa Indonesia**
+
+[![Rilis Terbaru](https://img.shields.io/github/v/release/Bintang-AF/Bitapres?style=for-the-badge&color=28a745)](https://github.com/Bintang-AF/Bitapres/releases/latest)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](#download--cara-menggunakan)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+
+[Download v1.1.0](https://github.com/Bintang-AF/Bitapres/releases/latest) • [Fitur Utama](#-fitur-utama-v110) • [Mode 1-Pass vs 2-Pass](#-mode-kompresi) • [Roadmap](#-roadmap-pengembangan)
+
+</div>
+
+---
 
 <!-- Hapus tanda komentar di bawah setelah menambahkan screenshot ke assets/screenshot.png -->
-<!-- ![Tampilan Bitapres](assets/screenshot.png) -->
+<!-- <p align="center"><img src="assets/screenshot.png" alt="Tampilan Bitapres" width="500"></p> -->
+
+## 💡 Kenapa Bitapres?
+
+Sering kesulitan mengecilkan klip game agar muat di **Discord (<10 MB)** atau kompres tugas video kampus tanpa harus mengunggah file pribadi ke situs online yang penuh iklan? **Bitapres** menghitung *bitrate* secara otomatis dan memproses video langsung di komputermu lewat FFmpeg—tanpa internet, tanpa *watermark*, dan tanpa batas unggah.
 
 ---
 
-## Fitur Utama (v1.0.1)
+## ✨ Fitur Utama (v1.1.0)
 
-- **Kompresi Target Ukuran (MB):** Menghitung *bitrate* video secara otomatis agar hasil kompresi mendekati target ukuran tanpa melewati batas.
-- **100% Lokal & Privat:** Semua proses berjalan di komputermu sendiri tanpa internet dan tanpa iklan.
-- **Mendukung Format Umum:** Bisa memproses `.mp4`, `.mkv`, `.mov`, dan `.avi`.
-- **Validasi & Pengaman Ketat:** Otomatis menolak input tidak valid, memberi tahu batas minimal MB yang realistis jika target terlalu kecil, serta mencegah file hasil tertimpa dengan penomoran otomatis (`_1`, `_2`, dst.).
-- **Antarmuka Ringan (Dark Mode):** Dibangun dengan CustomTkinter dan *background threading* agar aplikasi tidak macet (*Not Responding*) saat memproses video.
-
----
-
-## Download & Cara Menggunakan (Pengguna Umum)
-
-Kamu tidak perlu menginstal Python untuk memakai Bitapres.
-
-1. Unduh file **`Bitapres-v1.0.1-Windows.zip`** melalui halaman [**Latest Release di sini**](https://github.com/Bintang-AF/Bitapres/releases/latest).
-2. Ekstrak seluruh isi file ZIP ke dalam satu folder. Pastikan `Bitapres.exe`, `ffmpeg.exe`, dan `ffprobe.exe` tetap berada di folder yang sama.
-3. Klik dua kali **`Bitapres.exe`** untuk membuka aplikasi.
-4. Pilih video, masukkan target ukuran (MB), lalu klik **Mulai Kompres**. File hasil akan tersimpan otomatis di folder yang sama dengan video asli.
-
-> **Catatan Keamanan Windows:** Karena aplikasi ini belum memiliki sertifikat digital berbayar, Windows SmartScreen mungkin menampilkan peringatan *"Windows protected your PC"*. Klik **More info** lalu pilih **Run anyway**.
+* 🎯 **Presisi Target Ukuran (MB):** Cukup masukkan target MB yang diinginkan, Bitapres otomatis menghitung *bitrate* optimal agar hasil tidak melewati batas.
+* 📊 **Real-Time Progress & Batal:** Pantau kemajuan kompresi asli (0%–100%) langsung dari FFmpeg, atau batalkan kapan saja—file setengah jadi otomatis dihapus agar tidak menyampah.
+* 🔍 **Info Metadata Otomatis:** Langsung menampilkan ukuran asli, durasi, resolusi, dan FPS begitu file video dipilih.
+* ⚡ **Mode 1-Pass & 2-Pass:** Bebas pilih antara proses cepat atau mode *2-Pass* yang lebih presisi dengan kualitas gambar lebih tajam.
+* 📁 **Folder Simpan Bebas & Statistik Hemat:** Tentukan folder tujuan sesukamu dan lihat langsung ringkasan penghematannya (contoh: `20.4 MB → 7.4 MB • Hemat 63.7%`).
+* 🛡️ **Pengaman & Validasi Ketat:** Mencegah file tertimpa (`_1`, `_2`, dst.), mendeteksi file rusak, serta memberi rekomendasi minimal MB yang realistis jika target terlalu kecil.
 
 ---
 
-## Menjalankan dari Source Code (Developer)
+## ⚙️ Mode Kompresi
+
+| Mode | Cocok Untuk | Kecepatan | Akurasi Ukuran & Kualitas |
+| :--- | :--- | :---: | :---: |
+| **Cepat (1-Pass)** | Kirim cepat (WhatsApp, chat) | ⚡⚡⚡ Cepat | Cukup Baik |
+| **Akurat (2-Pass)** | Batas ketat (Discord, portal) | ⚡⚡ Sedang | 🎯 Sangat Presisi & Lebih Tajam |
+
+---
+
+## 📥 Download & Cara Menggunakan
+
+Tidak perlu menginstal Python untuk memakai Bitapres.
+
+1. Unduh file **`Bitapres-v1.1.0-Windows.zip`** di halaman [**Latest Release**](https://github.com/Bintang-AF/Bitapres/releases/latest).
+2. Ekstrak seluruh isi ZIP ke satu folder *(pastikan `Bitapres.exe`, `ffmpeg.exe`, dan `ffprobe.exe` tetap berada di folder yang sama)*.
+3. Klik dua kali **`Bitapres.exe`**.
+4. Pilih video, masukkan target ukuran (MB), pilih mode **1-Pass** atau **2-Pass**, lalu klik **Mulai Kompres**.
+
+> [!NOTE]
+> **Windows SmartScreen:** Karena Bitapres adalah aplikasi *open-source* mandiri tanpa sertifikat digital berbayar, Windows mungkin menampilkan peringatan *"Windows protected your PC"*. Klik **More info** → **Run anyway** untuk tetap membukanya.
+
+---
+
+## 🛠️ Menjalankan dari Source Code (Developer)
 
 **Prasyarat:** Python 3.12+ dan [FFmpeg](https://ffmpeg.org/) sudah terinstal di sistem (PATH).
 
